@@ -1,0 +1,188 @@
+---
+title: "p8105_hw2_yj2688"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(dplyr)
+library(readxl)
+```
+
+## GitHub Documents
+
+This is an R Markdown format used for publishing markdown documents to GitHub. When you click the **Knit** button all R code chunks are run and a markdown file (.md) suitable for publishing to GitHub is generated.
+
+## Including Code
+
+You can include R code in the document as follows:
+
+## Problem 1
+
+```{r tidy transit data}
+
+transit_data = read_csv(file = "./data/NYC_Transit_Subway_Entrance_And_Exit_Data.csv",
+                        col_types = cols(Route8 = "c", Route9 = "c", Route10 = "c", Route11 = "c")) %>% 
+  janitor::clean_names() %>% 
+  select(
+    line, station_name, station_latitude, station_longitude, 
+    route1:route11, entry, exit_only, vending, entrance_type, 
+    ada) %>% 
+  mutate(entry = recode(entry, "YES"=TRUE, "NO"=FALSE))
+
+```
+
+## 
+
+```{r find distinct stations}
+#Find number of distinct stations
+transit_data %>% 
+  distinct(line, station_name) %>%
+  distinct
+#465 rows were returned.
+
+#How many stations are ADA compliant?
+transit_data %>%
+  filter(ada == TRUE) %>% 
+  select(line, station_name) %>% 
+  distinct
+#84 stations are ADA compliant.
+
+#What proportion of station entrances / exits without vending allow entrance?
+transit_data %>% 
+  filter(vending == "NO") %>% 
+  pull(entry) %>% 
+  mean
+#37.7% of stations have entrances/exits without vending.
+
+```
+
+
+```{r reformat transit}
+#Reformat data so that route number and route name are distinct variables.
+transit_data %>% 
+  pivot_longer(
+    route1:route11,
+    names_to = "route_num",
+    values_to = "route") %>% 
+  filter(route == "A") %>% 
+  select(line, station_name) %>% 
+  distinct
+
+transit_data %>% 
+  pivot_longer(
+    route1:route11,
+    names_to = "route_num",
+    values_to = "route") %>% 
+  filter(route == "A", ada == TRUE) %>% 
+  select(station_name, line) %>% 
+  distinct
+
+```
+
+
+There are 60 distinct stations that serves the A train. 17 of them are ADA compliant. 
+
+
+#Problem 2
+
+```{r tidy trash wheel}
+# MR.trash wheel
+mr_trash_wheel = read_excel("./data/Trash Wheel Collection Data.xlsx", sheet = "Mr. Trash Wheel", range="A2:N550") %>%
+  janitor::clean_names() %>% 
+  mutate(sports_balls = as.integer(round(sports_balls, 0)), dumpster = as.character(dumpster), year = as.character(year),
+         id = "mr") %>%
+  filter(!is.na(month))
+
+
+# Professor trash wheel
+pro_trash_wheel  = read_excel("./data/Trash Wheel Collection Data.xlsx", sheet = "Professor Trash Wheel", range="A2:M96"
+                              ) %>% 
+  janitor::clean_names() %>% 
+  mutate(dumpster = as.character(dumpster), year = as.character(year), id = "professor")
+
+```
+
+
+```{r vertically combine trash wheel datasets}
+bind = bind_rows(mr_trash_wheel, pro_trash_wheel) %>%
+   janitor::clean_names() %>%
+  group_by(id) %>%
+  summarise( 
+	  mr = sum( ifelse( id == "mr", weight_tons, 0 ) )
+	, professor = sum( ifelse( id == "professor", weight_tons, 0 ) ) 
+	) 
+bind
+
+balls = mr_trash_wheel %>%
+  filter(!grepl("2020", year)) %>%
+  summarise(balls = sum(ifelse( id == "mr", sports_balls, 0)))
+
+```  
+
+There are 641 rows and 15 columns returned in the combined data set. From data of Mr. Trash Wheel, the amount of trash collected decreased in weight of 4.31 tons from May 2014 to 1.69 tons in July 2022. The change in volume is not significant -- trash collected in 2014 has a volume around 15 per month, and in 2022 the volume is 13 cubic yards. This may indicate that companies have employed light-weight packagings (trash volume is the same but weight is decreased). The count of glass bottles decreased from 72 in 2014 to 16 in July 2022, indicating that people are recycling/reusing the glass bottles for storages etc. The number of cigarette butts collected was up to 130000 in 2014, while the number decrased to 4900 in 2022. This is because people are now using e-cigarett or they quit smoking because of raising awareness of personal health. 
+
+The above trend is different for Professor Trash Wheel, because its weight of trash collected is always around 3 tons. But the volume of trash per month is similar to Mr. trash wheel. The difference may be caused by difference in area used, and difference in dimensions of the trash wheel. 
+
+The total weight of trash collected by Mr. Trash Wheel is 1748.36 tons, and the total weight of trash collected by professor trash wheel is 190.12 tons. The total number of sports balls collected by Mr. trash wheel in 2020 is 6021. 
+
+#Problem 3
+
+```{r tidy pol snp unemployment}
+#clean pol
+pol = read_csv(file = "./data/fivethirtyeight_datasets/pols-month.csv", 
+               col_types = cols(prez_gop = "c", gov_gop = "c", sen_gop = "c", rep_gop = "c", prez_dem = "c", gov_dem = "c", sen_dem = "c", rep_dem = "c")) %>%
+  janitor::clean_names() %>%
+  separate(col=mon, into=c('year', 'month', 'day'), sep='-') %>%
+  mutate(year = as.integer(year), month = as.integer(month), day = as.integer(day)) %>%
+  mutate(month = recode(month, '1' = 'Janurary', '2' = 'Feburary', '3' = 'March', '4' = 'April', '5' = 'May',
+                        '6' = 'June', '7' = 'July', '8' = 'August', '9' = 'September', '10' = 'October', 
+                        '11' = 'November', '12' = 'December')
+         ) %>% 
+  mutate(prez_dem = recode(prez_dem, '1' = 'dem', '0' = '')) %>%
+  mutate(prez_gop = recode(prez_gop, '1' = 'gop', '0' = '')) %>%
+  unite(president, prez_dem, prez_gop, sep = '') %>%
+  select(-starts_with("prez_"), -c(3))
+
+#clean snp
+snp = read_csv(file = "./data/fivethirtyeight_datasets/snp.csv", col_types = cols(close = "c", date = "c")) %>%
+  janitor::clean_names() %>%
+  mutate(date = lubridate::parse_date_time2(date, orders ="mdy", cutoff_2000 = 23)) %>%
+  separate(col=date, into=c('year', 'month', 'day'), sep='-') %>%
+  mutate(month = recode(month, '01' = 'Janurary', '02' = 'Feburary', '03' = 'March', '04' = 'April', '05' = 'May',
+                        '06' = 'June', '07' = 'July', '08' = 'August', '09' = 'September', '10' = 'October', 
+                        '11' = 'November', '12' = 'December') ) %>%
+  select(-c(3)) %>%
+  mutate(year = as.integer(year), close = as.numeric(close))
+
+#clean unemployment
+une = read_csv(file = "./data/fivethirtyeight_datasets/unemployment.csv", col_types = cols(Year = "c", Jan = "c", Feb = "c", Mar = "c", Apr = "c", May = "c", Jun = "c", Jul = "c", Aug = "c", Sep = "c", Oct = "c", Nov = "c", Dec = "c")) %>%
+  janitor::clean_names() %>% 
+  pivot_longer(
+    cols = c(2:13),
+    names_to = "month",
+    names_prefix = "",
+    values_to = "result",
+    values_drop_na = TRUE
+  ) %>% 
+  mutate(month = recode(month, 'jan' = 'Janurary', 'feb' = 'Feburary', 'mar' = 'March', 'apr' = 'April', 'may' = 'May',
+                        'jun' = 'June', 'jul' = 'July', 'aug' = 'August', 'sep' = 'September', 'oct' = 'October', 
+                        'nov' = 'November', 'dec' = 'December'), year = as.integer(year)
+         )
+```
+
+```{r merge tables horizontally}
+
+two = full_join(pol,snp, by=c('year', 'month')) 
+three = full_join(two, une, by=c("year","month")) %>%
+  rename_at(
+    vars(ends_with(".x")),
+    ~str_replace(., "\\..$","")
+  ) %>% 
+  select(-ends_with(".y"))
+
+```
+
+The "pol" table summarizes the number of national politicians (democratic or republican) in a timeline (1947 - 2015). The "snp" table summarizes the tandard & Poor’s stock market index from 1950 to 2015. The "une" table describes the percentage of unemployment in each month from 1948 to 2015. The joined table contains all of these data, with 823 rows and 11 columns, ranging from Janurary 1947 to July 2015. It allow us to explore the relationship/trend of these political and economical characteristics over time with the variables named as "president" (political party of president), "close" (closing values of the S&P stock index), and "result" (percentage of unemployment). We will be able to produce a linear plot with 2 different lines representing trend of S&P index and trend of unemployment, and markers with different colors that distinguishes political party of president using the joined table. 
+
